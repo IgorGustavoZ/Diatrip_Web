@@ -21,13 +21,13 @@
     <a href="../lobby.html">
         <div class="menu-item">✈ Minhas viagens</div>
     </a>
+    
+    <a href="feed.html">
+            <div class="menu-item">📰 Feed</div>
+        </a>
 
-    <a href="comunidade.html">
-        <div class="menu-item">💬 Comunidades</div>
-    </a>
-
-    <a href="config.html">
-        <div class="menu-item">⚙ Configurações</div>
+    <a href="perfil.html">
+        <div class="menu-item">👤 Perfil</div>
     </a>
 
     <a href="#">
@@ -66,13 +66,8 @@
             
 
             <div class="field">
-                <label for="orcamento">Orçamento</label>
-
-                <select id="orcamento">
-                    <option value="economico">Econômico</option>
-                    <option value="medio">Médio</option>
-                    <option value="luxo">Luxo</option>
-                </select>
+                <label for="orcamento">Orçamento (R$)</label>
+                <input id="orcamento" type="number" min="0" step="0.01" placeholder="Ex: 3000.00">
             </div>
 
             <div class="field">
@@ -110,6 +105,18 @@
     </div>
 
 <script>
+
+    // fetch(`https://api.openweathermap.org/data/2.5/forecast?q=Limeira&appid=82c889fafda006a44acac820fd8a2791&units=metric&lang=pt_br`)
+    // .then(resp => resp.json())
+    // .then(dados => {
+    //     console.log(dados)
+    // })
+
+    // pode ser usado o amadeus ainda
+    // fetch("https://nominatim.openstreetmap.org/search?q=restaurants in London&format=json&addressdetails=1")
+    // .then(resp => resp.json())
+    // .then(dados=>console.log(dados))
+
     const viagem = {
         paisIng: "",
         cidade: ""
@@ -203,6 +210,10 @@
 
                     if(cidade == ""){
 
+                        // console.log("Erro: cidade desconhecida.")
+
+                        // inputCidade.value = props.formatted.split(",")[0]
+
                         return
                     }
 
@@ -252,6 +263,12 @@
             return
         }
 
+        const orcamentoValor = parseFloat(orcamento.value)
+        if(isNaN(orcamentoValor) || orcamentoValor < 0){
+            divError.innerHTML = "Informe um orçamento válido (ex: 3000.00)."
+            return
+        }
+
         if(
             (dataInc[2] >= dataFim[2] && dataInc[1] == dataFim[1]) ||
             dataInc[0] > dataFim[0] ||
@@ -269,6 +286,7 @@
         }
 
         try {
+
             console.log("Cidade: "+inputCidade.value)
             console.log("Data de início: "+inputDataInicio.value)
             console.log("Data final: "+inputDataFim.value)
@@ -276,7 +294,8 @@
             console.log("Tipo de viagem: "+tipoViagem.value)
             console.log("Preferências: "+prefs.value)
 
-            const resp = await fetch("http://127.0.0.1:8000/grupos", { // criar viagem
+            const resp = await fetch("http://127.0.0.1:8000/grupos", {
+
                 method: "POST",
 
                 headers: {
@@ -285,6 +304,7 @@
                 },
 
                 body: JSON.stringify({
+
                     nome_grupo: `Viagem para ${viagem.cidade || inputCidade.value}`,
 
                     destino_principal: inputCidade.value,
@@ -293,7 +313,7 @@
 
                     data_fim: inputDataFim.value,
 
-                    orcamento: orcamento.value,
+                    orcamento: orcamentoValor,
 
                     tipo_viagem: tipoViagem.value,
 
@@ -304,6 +324,7 @@
             const dados = await resp.json()
 
             if(!resp.ok){
+
                 divError.innerHTML =
                     dados.detail || "Erro ao criar viagem"
 
@@ -317,10 +338,13 @@
             .then(dados=>console.log(dados))
 
             setTimeout(()=>{
+
                 window.location.href = "../lobby.html"
+
             },1200)
 
         } catch(e){
+
             console.log(e)
 
             divError.innerHTML =
