@@ -3,7 +3,20 @@ from fastapi import HTTPException
 from database import get_db
 from utils.security import gerar_hash
 
-
+def buscar_tudo()-> List:
+    with get_db() as conexao:
+        cursor = conexao.cursor(dictionary=True)
+        try:
+            cursor.execute(
+                "SELECT * FROM usuarios"
+            )
+            usuarios = cursor.fetchall()
+            if not usuarios:
+                raise HTTPException(status_code=404, detail="Usuário não encontrado")
+            return usuarios
+        finally:
+            cursor.close()
+          
 def buscar_por_id(usuario_id: int) -> dict:
     with get_db() as conexao:
         cursor = conexao.cursor(dictionary=True)

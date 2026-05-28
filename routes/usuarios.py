@@ -16,6 +16,9 @@ class UsuarioUpdate(BaseModel):
     nome: str
     email: EmailStr
 
+@router.get("/usuarios")
+def buscar_usuarios(_: int = Depends(get_usuario_logado)):
+    return usuario_service.buscar_tudo()
 
 @router.get("/usuarios/me")
 def obter_perfil_atual(usuario_id: int = Depends(get_usuario_logado)):
@@ -25,11 +28,6 @@ def obter_perfil_atual(usuario_id: int = Depends(get_usuario_logado)):
 @router.get("/usuarios/{id_usuario}")
 def buscar_usuario(id_usuario: int, _: int = Depends(get_usuario_logado)):
     return usuario_service.buscar_por_id(id_usuario)
-
-
-@router.post("/usuarios")
-def criar_usuario(dados: UsuarioInput):
-    return usuario_service.criar(dados.nome, dados.email, dados.senha)
 
 
 @router.put("/usuarios/{id_usuario}")

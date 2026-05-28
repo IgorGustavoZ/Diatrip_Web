@@ -19,7 +19,7 @@ def login(dados: LoginInput):
                 (dados.email,)
             )
             usuario = cursor.fetchone()
-            if not usuario or not verificar_senha(dados.senha, usuario["senha_hash"]):
+            if not usuario or not verificar_senha(dados.senha, usuario["senha_hash"]):            
                 raise HTTPException(status_code=401, detail="Informações inválidas")
             usuario_id = usuario["id_usuario"]
             token = criar_token(usuario_id)

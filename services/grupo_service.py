@@ -5,7 +5,6 @@ from fastapi import HTTPException
 from database import get_db
 from utils.dependencies import checar_membro_grupo
 
-
 def listar_por_usuario(usuario_id: int) -> list:
     with get_db() as conexao:
         cursor = conexao.cursor(dictionary=True)
