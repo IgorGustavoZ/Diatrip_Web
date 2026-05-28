@@ -36,6 +36,10 @@ class UsuarioUpdate(BaseModel):
     bio: str | None = Field(None, max_length=500)
 
 
+@router.get("/usuarios")
+def buscar_usuarios(_: int = Depends(get_usuario_logado)):
+    return usuario_service.buscar_tudo()
+
 @router.get("/usuarios/me")
 def obter_perfil_atual(usuario_id: int = Depends(get_usuario_logado)):
     return usuario_service.buscar_por_id(usuario_id)
