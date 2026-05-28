@@ -1,67 +1,93 @@
-import pytest
-from fastapi.testclient import TestClient
-from main import app
+"""
+test_budget_calc.py — Testes de calculo financeiro e balanco.
+"""
+from unittest.mock import MagicMock, patch
 
-client = TestClient(app)
-
-_EMAIL = "teste_budget@diartrip.com"
-_SENHA = "password123"
+from tests.conftest import fake_get_db
 
 
-@pytest.fixture
-def usuario_e_token():
-    client.post("/usuarios", json={"nome": "Tester", "email": _EMAIL, "senha": _SENHA})
-    login_resp = client.post("/login", json={"email": _EMAIL, "senha": _SENHA})
-    dados = login_resp.json()
-    token = dados["token"]
-    usuario_id = dados["usuario_id"]
-    yield usuario_id, token
-    client.delete(f"/usuarios/{usuario_id}", headers={"Authorization": f"Bearer {token}"})
+def _conn_seq(fetchones, fetchalls=None):
+    fa = fetchalls or {}
+    fetch_idx = [0]
+    fetchall_idx = [0]
+
+    def factory(**kw):
+        c = MagicMock()
+        c.rowcount = 1
+        c.lastrowid = 1
+
+        def _fetchone():
+            i = fetch_idx[0]
+            fetch_idx[0] += 1
+            return fetchones[i] if i < len(fetchones) else None
+
+        def _fetchall():
+            i = fetchall_idx[0]
+            fetchall_idx[0] += 1
+            return fa.get(i, [])
+
+        c.fetchone.side_effect = _fetchone
+        c.fetchall.side_effect = _fetchall
+        return c
+
+    conn = MagicMock()
+    conn.cursor.side_effect = factory
+    conn.commit = MagicMock()
+    conn.rollback = MagicMock()
+    conn.close = MagicMock()
+    return conn
 
 
-@pytest.fixture
-def grupo_com_gastos(usuario_e_token):
-    _, token = usuario_e_token
-    headers = {"Authorization": f"Bearer {token}"}
-    orcamento_inicial = 5000.00
+def test_calculo_orcamento_dashboard(client_usuario):
+    """Dashboard geral mostra total consumido e orcamento restante corretos."""
+    orcamento = 5000.00
+    total_gastos = 1250.50
 
-    grupo_resp = client.post(
-        "/grupos",
-        json={
-            "nome_grupo": "Teste Financeiro",
-            "destino_principal": "Paris",
-            "data_inicio": "2026-01-01",
-            "data_fim": "2026-01-10",
-            "orcamento": orcamento_inicial,
-            "tipo_viagem": "Luxo",
-            "preferencias": "Vinho",
-        },
-        headers=headers,
+    conn = _conn_seq(
+        [
+            (1,),
+            {"cargo": "membro"},
+            {"orcamento": orcamento, "nome_grupo": "Teste Financeiro"},
+            {"total": total_gastos},
+        ],
     )
-    id_grupo = grupo_resp.json()["id_grupo"]
 
-    gastos = [500.00, 750.50]
-    for valor in gastos:
-        client.post(
-            f"/grupos/{id_grupo}/gastos",
-            json={"valor": valor, "categoria": "Alimentação", "descricao": "Gasto teste"},
-            headers=headers,
-        )
+    with patch("database.get_db", fake_get_db(conn)):
+        resp = client_usuario.get("/grupos/10/dashboard/geral")
 
-    yield id_grupo, orcamento_inicial, gastos, token
-    client.delete(f"/grupos/{id_grupo}", headers=headers)
+    assert resp.status_code == 200
+    dados = resp.json()
+
+    assert dados["total_consumido"] == total_gastos
+    assert dados["orcamento_restante"] == round(orcamento - total_gastos, 2)
 
 
-def test_calculo_orcamento_dashboard(grupo_com_gastos):
-    id_grupo, orcamento_inicial, gastos, token = grupo_com_gastos
-    headers = {"Authorization": f"Bearer {token}"}
+def test_balanco_entre_membros(client_usuario):
+    """Balanco distribui corretamente entre quem pagou e quem deve."""
+    conn = _conn_seq(
+        [(1,), {"cargo": "membro"}],
+        fetchalls={
+            0: [
+                {"id_usuario": 1, "nome": "Tester"},
+                {"id_usuario": 2, "nome": "Outro"},
+            ],
+            1: [{"user_id": 1, "total": 50.0}],
+            2: [{"user_id": 2, "total": 50.0}],
+        },
+    )
 
-    dash_resp = client.get(f"/grupos/{id_grupo}/dashboard/geral", headers=headers)
-    assert dash_resp.status_code == 200
-    dados = dash_resp.json()
+    with patch("database.get_db", fake_get_db(conn)):
+        resp = client_usuario.get("/grupos/10/balanco")
 
-    total_esperado = sum(gastos)
-    restante_esperado = orcamento_inicial - total_esperado
+    assert resp.status_code == 200
+    balanco = resp.json()
 
-    assert dados["total_consumido"] == total_esperado
-    assert dados["orcamento_restante"] == restante_esperado
+    meu_balanco = next((m for m in balanco if m["id_usuario"] == 1), None)
+    outro_balanco = next((m for m in balanco if m["id_usuario"] == 2), None)
+
+    assert meu_balanco is not None, "Usuario 1 nao apareceu no balanco"
+    assert outro_balanco is not None, "Usuario 2 nao apareceu no balanco"
+    assert float(meu_balanco["a_receber"]) == 50.00
+    assert float(meu_balanco["saldo"]) == 50.00
+    assert float(outro_balanco["a_pagar"]) == 50.00
+    assert float(outro_balanco["saldo"]) == -50.00
