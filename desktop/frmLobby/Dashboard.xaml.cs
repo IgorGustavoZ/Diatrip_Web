@@ -28,8 +28,10 @@ namespace WindowLobby
 
         public async void ComporInformacoes()
         {
-            var getUsu = await Usuario.GetUsuarios(Sessao.Token);
-            var getVia = await Viagem.GetViagens(Sessao.Token);
+            string token = Sessao.Token;
+
+            var getUsu = await Usuario.GetUsuarios(token);
+            var getVia = await Viagem.GetViagens(token);
 
             if (getUsu != null && getVia != null)
             {
